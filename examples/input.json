@@ -1,0 +1,15 @@
+{
+  "net_debt": 1200,
+  "shares": 800,
+  "target": {
+    "revenue": 5000,
+    "ebitda": 900,
+    "eps": 2.5
+  },
+  "peers": [
+    {"name": "Peer A", "EV/Revenue": 4.2, "EV/EBITDA": 14.1, "P/E": 22.0},
+    {"name": "Peer B", "EV/Revenue": 3.6, "EV/EBITDA": 12.8, "P/E": 19.5},
+    {"name": "Peer C", "EV/Revenue": 5.1, "EV/EBITDA": 16.3, "P/E": 25.4},
+    {"name": "Peer D", "EV/Revenue": 3.9, "EV/EBITDA": 13.5, "P/E": 21.2}
+  ]
+}
