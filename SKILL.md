@@ -1,87 +1,116 @@
 ---
 name: valuation-comps
-title: Valuation Comps（可比公司估值）
-summary: 给一个标的（代码或名称），自动跑完可比公司分析的八步流程，输出对齐口径的 Comps 表与隐含估值区间。投资分析的第一性工具——相对估值锚。
+title: Valuation Comps — Trading Comparable Company Analysis
+summary: Give it a ticker and it runs the full 8-step comparable-company analysis, producing a definition-aligned comps table and an implied valuation range. The first-principles tool of equity analysis — a relative valuation anchor.
 read_when:
-  - 用户要做相对估值 / 可比公司分析（Comps / trading comps）
-  - 用户给出一家公司，想知道"相对同行贵不贵、合理估值区间在哪"
-  - 用户要建 EV/Revenue、EV/EBITDA、P/E 等倍数对比表
-  - 用户提到 "comps" "可比公司" "相对估值" "peer multiples" "贵不贵"
+  - user wants relative valuation / comparable company analysis (comps / trading comps)
+  - user names a company and asks whether it is expensive or cheap versus peers, and where a fair range sits
+  - user wants a multiples table (EV/Revenue, EV/EBITDA, P/E)
+  - user mentions "comps" "comparable companies" "relative valuation" "peer multiples" "too expensive"
 ---
 
-# Valuation Comps（可比公司估值）
+> **English** · [简体中文](SKILL_CN.md)
 
-一个让 coding agent 执行**可比公司分析（trading comps）**的可复用 skill。
-设计哲学同 Zara Zhang 的 `frontend-slides`：代码只是表达媒介，**能复用、能复现、能校验**才值得做。
+# Valuation Comps
 
-本 skill 不预测点位，只给"市场现在愿意为这类生意付多少倍"的相对锚，并强制与绝对估值（DCF）互相印证。
-仓库内 `scripts/comps_calc.py` 是计算内核：**agent 只负责取数和对齐口径，算术交给脚本**，避免心算误差与口径错配。
+A reusable skill that lets a coding agent run **comparable company analysis (trading comps)**.
+Same design philosophy as Zara Zhang's `frontend-slides`: code is only the medium —
+**reusable, reproducible, verifiable** is what makes it worth building.
 
-## 何时使用
-- 判断某标的相对同行的估值贵贱（买不买得了"便宜"）；
-- 给投行/投资/研究场景快速产出标准化 Comps 表；
-- 作为 DCF / precedent transactions 的交叉验证层。
+This skill does not forecast price levels. It gives a relative anchor — *what multiple is the market
+currently willing to pay for this kind of business* — and forces cross-checking against absolute
+valuation (DCF). `scripts/comps_calc.py` is the calculation core:
+**the agent fetches data and aligns definitions; the script does the arithmetic.** That removes mental
+math errors and definition mismatches.
 
-## 八步流程（必须按顺序跑完，且每步留痕）
+## When to use
+- Judge whether a target is expensive or cheap relative to peers (whether "cheap" is real).
+- Produce a standardised comps table quickly for banking / investing / research work.
+- Serve as the cross-check layer against DCF and precedent transactions.
 
-1. **定标的与视角**：明确分析对象（A股/港股/美股代码或公司名）+ 视角（买方：要不要买；卖方：该卖多少）。记录当前市价、总股本、市值、净负债（净负债 = 有息负债 − 现金）。
-2. **选 peer（三维，不按行业标签硬凑）**：
-   - 业务同质（同一赛道/同一商业模式，而非同一 GICS 四位数行业）；
-   - 规模可比（营收/市值落在标的 0.3×–3× 区间，偏离过大单列"规模校正"）；
-   - 市场相同（同一上市地，流动性与折现环境可比）。
-   - 目标 3–8 家；记录每家入选/排除逻辑（见 `references/peer_selection.md`）。
-3. **取倍数**：至少 EV/Revenue、EV/EBITDA、P/E；成长股补 EV/Gross Profit；金融股用 P/B、P/E（不用 EV 系，因其资产负债结构特殊）。每个倍数标注适用前提（见 `references/multiples.md`）。
-4. **对齐口径（最易错的环节）**：
-   - 用**归一化倍数**（NTM 或 FY+1 未来口径），不用 LTM 单点；
-   - 剔除一次性损益（重组、减值、投资收益、汇兑）；
-   - EV 已含净负债，P/E 不含——混用时必须显式换算（脚本自动处理）；
-   - 负 EBITDA / 负 EPS 的公司：**从倍数样本剔除但不删除**，注明原因，避免拉低中位数失真。
-5. **算中心趋势**：报告**中位数**为主、均值与 25/75 分位为辅。中位数对 outlier 更稳。直接跑 `scripts/comps_calc.py`（输入 peer 倍数 + 标的预测指标）。
-6. **做敏感性**：用 25 / 50 / 75 分位倍数 × 标的对应预测指标，给**估值区间**（非单点）。脚本直接输出。
-7. **隐含校验**：把 Comps 隐含值与 DCF / 交易可比交叉验证；偏离 >20% 必须复盘 peer 选择或口径，不允许"取平均了事"。
-8. **出结论**：明确"相对贵 / 合理 / 便宜"，并给出**触发重估的变量**（不是点位预测）。便宜若无理由 = 价值陷阱，必须说明（见 `references/value_trap.md`）。
+## The eight steps (run in order, leave a trace at each)
 
-## 数据来源（按优先级，严禁编造）
-- **首选 `westock-data` skill**（金融市场结构化数据，覆盖 A/港/美）：市值、EV、营收、EBITDA、净利、一致预期（NTM/FY+1）。
-- 备选 `akshare-stock` / `neodata-financial-search`：补 A 股明细与一致预期。
-- 兜底 `WebSearch` / `WebFetch`：公司官网 IR、年报、行情页。
-- **任何缺失字段标 `N/A` 并注明原因**；不在文内填占位假数。`scripts/comps_calc.py` 会对 `N/A` 自动跳过该样本并在输出标注。
+1. **Define target and vantage**: the subject (A-share / HK / US ticker or company name) plus the
+   vantage (buy-side: should I buy; sell-side: what should it fetch). Record current price, shares
+   outstanding, market cap and net debt (net debt = interest-bearing debt − cash).
+2. **Screen peers (three axes, not an industry label)**:
+   - Same business (same track / business model, not merely the same four-digit GICS code);
+   - Comparable scale (revenue / market cap within 0.3×–3× of the target; large deviations get a
+     separate "scale adjustment" note);
+   - Same market (same listing venue, so liquidity and discount-rate environment are comparable).
+   - Target 3–8 names; record why each was included or excluded (see `references/peer_selection.md`).
+3. **Pull multiples**: at minimum EV/Revenue, EV/EBITDA and P/E. Add EV/Gross Profit for growth
+   names; use P/B and P/E for financials (never the EV family — their balance sheets are structurally
+   different). State the applicability condition for every multiple (see `references/multiples.md`).
+4. **Align definitions (the easiest place to get it wrong)**:
+   - Use **normalised multiples** (NTM or FY+1 forward basis), not a single LTM point;
+   - Strip one-off items (restructuring, impairments, investment gains, FX);
+   - EV includes net debt, P/E does not — mixing them requires an explicit conversion (the script
+     handles it);
+   - Companies with negative EBITDA / negative EPS: **exclude from the multiple sample but do not
+     delete them** — note the reason, so the median isn't dragged down and distorted.
+5. **Compute the centre**: report the **median** as primary, with mean and 25th/75th percentiles as
+   secondary. The median is steadier against outliers. Run `scripts/comps_calc.py` directly (input:
+   peer multiples plus the target's forecast metrics).
+6. **Run sensitivity**: 25th / 50th / 75th percentile multiples against the target's matching forecast
+   metric to produce a **valuation range**, not a point. The script outputs this directly.
+7. **Implied check**: reconcile the comps-implied value against DCF and precedent transactions. A gap
+   above 20% forces a review of peer selection or definitions — "just average them" is not allowed.
+8. **Conclude**: state expensive / fair / cheap explicitly, and name the **variables that would
+   trigger a re-rating** (not a price target). Cheap without a reason is a value trap and must be
+   explained (see `references/value_trap.md`).
 
-## 输出规范
-产出两份：
-1. **Markdown 报告**（结构见 `examples/sample-comps.md`）：筛选逻辑 + Comps 表（带中位数/分位）+ 敏感性区间 + 结论与重估触发条件 + 数据日期来源。
-2. **计算留痕**：`scripts/comps_calc.py` 的输出原样附在报告末，保证可复现。
+## Data sources (in priority order; never fabricate)
+- **`westock-data` skill first** (structured market data covering A-share / HK / US): market cap, EV,
+  revenue, EBITDA, net income, consensus estimates (NTM / FY+1).
+- Fallbacks: `akshare-stock` / `neodata-financial-search` for A-share detail and consensus.
+- Last resort: `WebSearch` / `WebFetch` — company IR pages, annual reports, quote pages.
+- **Mark any missing field `N/A` with a reason.** Never fill placeholder numbers into the report.
+  `scripts/comps_calc.py` skips `N/A` samples automatically and flags them in the output.
 
-### Comps 表最小结构
-| 可比公司 | EV/Rev | EV/EBITDA | P/E | 入选理由 |
+## Output format
+Produce two things:
+1. **Markdown report** (structure in `examples/sample-comps.md`): screening logic + comps table (with
+   median / percentiles) + sensitivity range + conclusion and re-rating triggers + data date and source.
+2. **Calculation trace**: the raw output of `scripts/comps_calc.py` appended verbatim, so it's
+   reproducible.
+
+### Minimum comps table structure
+| Peer | EV/Rev | EV/EBITDA | P/E | Why included |
 |---|---|---|---|---|
-| Peer A | 4.2x | 14.1x | 22.0x | 同赛道龙头 |
-| Peer B | 3.6x | 12.8x | 19.5x | 规模可比 |
-| **中位数** | **4.2x** | **14.1x** | **22.0x** | — |
+| Peer A | 4.2x | 14.1x | 22.0x | Leader in the same track |
+| Peer B | 3.6x | 12.8x | 19.5x | Comparable scale |
+| **Median** | **4.2x** | **14.1x** | **22.0x** | — |
 
-## 校验与红线（可靠性兜底）
-- 样本数 < 3 时不报"中位数结论"，只报"样本不足，仅供参考"；
-- 任一样本倍数偏离中位数 > 2×，自动标红提示复核（可能是口径错配或异常值）；
-- 标的最终价与 DCF 结论冲突 > 20% 时，禁止同时给出"买"和"便宜"两个结论，必须先解冲突；
-- 所有倍数必须注明口径（LTM/NTM/FY+1）与币种，跨币种比较先统一。
+## Checks and red lines (reliability floor)
+- Fewer than 3 samples: do not report a median conclusion, only "insufficient sample, indicative only".
+- Any sample multiple deviating more than 2× from the median gets flagged in red for review (likely a
+  definition mismatch or an outlier).
+- If the target's resulting price conflicts with the DCF conclusion by more than 20%, you may not
+  state both "buy" and "cheap" — resolve the conflict first.
+- Every multiple must carry its basis (LTM / NTM / FY+1) and currency; unify currencies before
+  comparing.
 
-## 边界与免责
-- Comps 反映**市场情绪**，不是内在价值；永远与绝对估值交叉验证。
-- 倍数差异必须解释来源（增长、杠杆、拐点、流动性），不能只报"便宜/贵"。
-- 所有结论标注数据日期与来源；投资决策由人负责，本 skill 只产出可复现的分析骨架。
+## Boundaries and disclaimer
+- Comps reflect **market sentiment**, not intrinsic value; always cross-check against absolute valuation.
+- Multiple differences must be explained (growth, leverage, inflection, liquidity), not just labelled
+  cheap or expensive.
+- Stamp every conclusion with data date and source. Investment decisions belong to a human; this skill
+  produces a reproducible analysis skeleton.
 
-## 目录结构
+## Layout
 ```
 valuation-comps/
-  SKILL.md                  # 本文件
-  README.md                 # 用法 + 数据来源说明 + 示例
+  SKILL.md                  # this file (English)
+  SKILL_CN.md               # 简体中文版
+  README.md                 # usage + data sources + example
   references/
-    peer_selection.md       # peer 三维筛选清单 + 排除逻辑
-    multiples.md            # 各倍数适用前提与口径陷阱
-    value_trap.md           # 价值陷阱识别清单
+    peer_selection.md       # three-axis peer screening checklist + exclusion logic
+    multiples.md            # applicability conditions and definition traps per multiple
+    value_trap.md           # value trap checklist
   scripts/
-    comps_calc.py           # 计算内核（中位数/分位/隐含区间/校验）
-    comps_calc_test.py      # 单测，保证算术可靠
+    comps_calc.py           # calculation core (median / percentiles / implied range / checks)
+    comps_calc_test.py      # unit tests, so the arithmetic is trustworthy
   examples/
-    sample-comps.md         # 脱敏样例报告
+    sample-comps.md         # anonymised sample report
 ```

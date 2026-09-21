@@ -1,6 +1,6 @@
 # valuation-comps
 
-*[English](./README.md) | 中文*
+> [English](./README.md) · **简体中文** · [站点](https://leo.uichain.org/)
 
 > 给一个标的，自动跑完可比公司分析（trading comps）的八步流程，输出对齐口径的 Comps 表与隐含估值区间。
 > 投资分析的第一性工具——**相对估值锚**。不预测点位，只回答"市场现在愿为这类生意付多少倍"。
